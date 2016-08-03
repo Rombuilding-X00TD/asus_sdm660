@@ -2276,17 +2276,16 @@ static void qpnp_timed_enable_worker(struct work_struct *work)
 					 td_work);
 	bool state;
 	ktime_t rem;
-	int rc;
-	int time_ms;
+	int rc, time_ms;
 
 	spin_lock(&hap->td_lock);
 	time_ms = hap->td_time_ms;
 	spin_unlock(&hap->td_lock);
 
-	state = !!time_ms;
-
 	if (time_ms < 0)
 		return;
+
+	state = !!time_ms;
 
 	mutex_lock(&hap->lock);
 
