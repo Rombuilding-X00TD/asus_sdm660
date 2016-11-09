@@ -1640,6 +1640,19 @@ static inline int __bpf_rx_skb(struct net_device *dev, struct sk_buff *skb)
 	return dev_forward_skb(dev, skb);
 }
 
+static inline int __bpf_rx_skb_no_mac(struct net_device *dev,
+				      struct sk_buff *skb)
+{
+	int ret = ____dev_forward_skb(dev, skb);
+
+	if (likely(!ret)) {
+		skb->dev = dev;
+		ret = netif_rx(skb);
+	}
+
+	return ret;
+}
+
 static inline int __bpf_tx_skb(struct net_device *dev, struct sk_buff *skb)
 {
 	int ret;
@@ -1698,9 +1711,6 @@ static int __bpf_redirect(struct sk_buff *skb, struct net_device *dev,
 	case ARPHRD_IPGRE:
 	case ARPHRD_VOID:
 	case ARPHRD_NONE:
-#ifdef ARPHRD_RAWIP
-	case ARPHRD_RAWIP:
-#endif
 		return __bpf_redirect_no_mac(skb, dev, flags);
 	default:
 		return __bpf_redirect_common(skb, dev, flags);
@@ -1735,10 +1745,7 @@ BPF_CALL_3(bpf_clone_redirect, struct sk_buff *, skb, u32, ifindex, u64, flags)
 		return -ENOMEM;
 	}
 
-	bpf_push_mac_rcsum(clone);
-
-	return flags & BPF_F_INGRESS ?
-	       __bpf_rx_skb(dev, clone) : __bpf_tx_skb(dev, clone);
+	return __bpf_redirect(clone, dev, flags);
 }
 
 static const struct bpf_func_proto bpf_clone_redirect_proto = {
@@ -1782,10 +1789,7 @@ int skb_do_redirect(struct sk_buff *skb)
 		return -EINVAL;
 	}
 
-	bpf_push_mac_rcsum(skb);
-
-	return ri->flags & BPF_F_INGRESS ?
-	       __bpf_rx_skb(dev, skb) : __bpf_tx_skb(dev, skb);
+	return __bpf_redirect(skb, dev, ri->flags);
 }
 
 static const struct bpf_func_proto bpf_redirect_proto = {
