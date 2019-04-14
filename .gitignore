@@ -114,16 +114,5 @@ all.config
 # Kdevelop4
 *.kdev4
 
-# fetched Android config fragments
-android/configs/android-*.cfg
-
-# Clang's compilation database file
-/compile_commands.json
-
-#
-#Ignoring Android.bp link file
-#
-Android.bp
-
-# Huaqin, stop being retard by doing all kernel stuffs on Windows
-!.gitattributes
+# Object directory
+out/
