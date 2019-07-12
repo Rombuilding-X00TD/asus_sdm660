@@ -581,139 +581,9 @@ static bool io_is_mergeable(struct f2fs_sb_info *sbi, struct bio *bio,
 					block_t last_blkaddr,
 					block_t cur_blkaddr)
 {
-	if (F2FS_IO_ALIGNED(sbi) && (fio->type == DATA || fio->type == NODE)) {
-		unsigned int filled_blocks =
-				F2FS_BYTES_TO_BLK(bio->bi_iter.bi_size);
-		unsigned int io_size = F2FS_IO_SIZE(sbi);
-		unsigned int left_vecs = bio->bi_max_vecs - bio->bi_vcnt;
-
-		/* IOs in bio is aligned and left space of vectors is not enough */
-		if (!(filled_blocks % io_size) && left_vecs < io_size)
-			return false;
-	}
 	if (!page_is_mergeable(sbi, bio, last_blkaddr, cur_blkaddr))
 		return false;
 	return io_type_is_mergeable(io, fio);
-}
-
-static void add_bio_entry(struct f2fs_sb_info *sbi, struct bio *bio,
-				struct page *page, enum temp_type temp)
-{
-	struct f2fs_bio_info *io = sbi->write_io[DATA] + temp;
-	struct bio_entry *be;
-
-	be = f2fs_kmem_cache_alloc(bio_entry_slab, GFP_NOFS);
-	be->bio = bio;
-	bio_get(bio);
-
-	if (bio_add_page(bio, page, PAGE_SIZE, 0) != PAGE_SIZE)
-		f2fs_bug_on(sbi, 1);
-
-	down_write(&io->bio_list_lock);
-	list_add_tail(&be->list, &io->bio_list);
-	up_write(&io->bio_list_lock);
-}
-
-static void del_bio_entry(struct bio_entry *be)
-{
-	list_del(&be->list);
-	kmem_cache_free(bio_entry_slab, be);
-}
-
-static int add_ipu_page(struct f2fs_sb_info *sbi, struct bio **bio,
-							struct page *page)
-{
-	enum temp_type temp;
-	bool found = false;
-	int ret = -EAGAIN;
-
-	for (temp = HOT; temp < NR_TEMP_TYPE && !found; temp++) {
-		struct f2fs_bio_info *io = sbi->write_io[DATA] + temp;
-		struct list_head *head = &io->bio_list;
-		struct bio_entry *be;
-
-		down_write(&io->bio_list_lock);
-		list_for_each_entry(be, head, list) {
-			if (be->bio != *bio)
-				continue;
-
-			found = true;
-
-			if (bio_add_page(*bio, page, PAGE_SIZE, 0) == PAGE_SIZE) {
-				ret = 0;
-				break;
-			}
-
-			/* bio is full */
-			del_bio_entry(be);
-			__submit_bio(sbi, *bio, DATA);
-			break;
-		}
-		up_write(&io->bio_list_lock);
-	}
-
-	if (ret) {
-		bio_put(*bio);
-		*bio = NULL;
-	}
-
-	return ret;
-}
-
-void f2fs_submit_merged_ipu_write(struct f2fs_sb_info *sbi,
-					struct bio **bio, struct page *page)
-{
-	enum temp_type temp;
-	bool found = false;
-	struct bio *target = bio ? *bio : NULL;
-
-	for (temp = HOT; temp < NR_TEMP_TYPE && !found; temp++) {
-		struct f2fs_bio_info *io = sbi->write_io[DATA] + temp;
-		struct list_head *head = &io->bio_list;
-		struct bio_entry *be;
-
-		if (list_empty(head))
-			continue;
-
-		down_read(&io->bio_list_lock);
-		list_for_each_entry(be, head, list) {
-			if (target)
-				found = (target == be->bio);
-			else
-				found = __has_merged_page(be->bio, NULL,
-								page, 0);
-			if (found)
-				break;
-		}
-		up_read(&io->bio_list_lock);
-
-		if (!found)
-			continue;
-
-		found = false;
-
-		down_write(&io->bio_list_lock);
-		list_for_each_entry(be, head, list) {
-			if (target)
-				found = (target == be->bio);
-			else
-				found = __has_merged_page(be->bio, NULL,
-								page, 0);
-			if (found) {
-				target = be->bio;
-				del_bio_entry(be);
-				break;
-			}
-		}
-		up_write(&io->bio_list_lock);
-	}
-
-	if (found)
-		__submit_bio(sbi, target, DATA);
-	if (bio && *bio) {
-		bio_put(*bio);
-		*bio = NULL;
-	}
 }
 
 int f2fs_merge_page_bio(struct f2fs_io_info *fio)
@@ -730,8 +600,10 @@ int f2fs_merge_page_bio(struct f2fs_io_info *fio)
 	f2fs_trace_ios(fio, 0);
 
 	if (bio && !page_is_mergeable(fio->sbi, bio, *fio->last_block,
-						fio->new_blkaddr))
-		f2fs_submit_merged_ipu_write(fio->sbi, &bio, NULL);
+						fio->new_blkaddr)) {
+		__submit_bio(fio->sbi, bio, fio->type);
+		bio = NULL;
+	}
 alloc_new:
 	if (!bio) {
 		bio = __bio_alloc(fio, BIO_MAX_PAGES);
