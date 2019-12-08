@@ -11,8 +11,8 @@
 #include "netlink.h"
 
 #include <uapi/linux/wireguard.h>
-#include "crypto/zinc.h"
 
+#include <linux/version.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/genetlink.h>
@@ -21,11 +21,6 @@
 static int __init mod_init(void)
 {
 	int ret;
-
-	if ((ret = chacha20_mod_init()) || (ret = poly1305_mod_init()) ||
-	    (ret = chacha20poly1305_mod_init()) || (ret = blake2s_mod_init()) ||
-	    (ret = curve25519_mod_init()))
-		return ret;
 
 #ifdef DEBUG
 	if (!wg_allowedips_selftest() || !wg_packet_counter_selftest() ||
@@ -67,4 +62,3 @@ MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com>");
 MODULE_VERSION(WIREGUARD_VERSION);
 MODULE_ALIAS_RTNL_LINK(KBUILD_MODNAME);
 MODULE_ALIAS_GENL_FAMILY(WG_GENL_NAME);
-MODULE_INFO(intree, "Y");
