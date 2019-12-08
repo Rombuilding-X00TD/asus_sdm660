@@ -6,9 +6,9 @@
 #ifndef _WG_MESSAGES_H
 #define _WG_MESSAGES_H
 
-#include <zinc/curve25519.h>
-#include <zinc/chacha20poly1305.h>
-#include <zinc/blake2s.h>
+#include <crypto/curve25519.h>
+#include <crypto/chacha20poly1305.h>
+#include <crypto/blake2s.h>
 
 #include <linux/kernel.h>
 #include <linux/param.h>
@@ -32,7 +32,7 @@ enum cookie_values {
 };
 
 enum counter_values {
-	COUNTER_BITS_TOTAL = 8192,
+	COUNTER_BITS_TOTAL = 2048,
 	COUNTER_REDUNDANT_BITS = BITS_PER_LONG,
 	COUNTER_WINDOW_SIZE = COUNTER_BITS_TOTAL - COUNTER_REDUNDANT_BITS
 };
