@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/mount.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/io.h>
@@ -20,7 +21,6 @@
 #include <sys/reboot.h>
 #include <sys/utsname.h>
 #include <sys/sendfile.h>
-#include <sys/sysmacros.h>
 #include <linux/random.h>
 #include <linux/version.h>
 
