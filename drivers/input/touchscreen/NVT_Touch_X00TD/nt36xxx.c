@@ -219,6 +219,9 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
 static void nvt_ts_early_suspend(struct early_suspend *h);
 static void nvt_ts_late_resume(struct early_suspend *h);
 #endif
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+#include <linux/input/tp_common.h>
+#endif
 
 // Huaqin add for ctp lose efficacy by zhengwu.lu. at 2018/04/18 For Platform start
 static atomic_t nvt_irq_status = ATOMIC_INIT(1);
@@ -474,12 +477,77 @@ static ssize_t nvt_gesture_mode_set_proc(struct file *filp,
 	return count;
 }
 
-static struct proc_dir_entry *nvt_gesture_mode_proc = NULL;
-static const struct file_operations gesture_mode_proc_ops = {
-	.owner = THIS_MODULE,
-	.read = nvt_gesture_mode_get_proc,
-	.write = nvt_gesture_mode_set_proc,
+static struct kobj_attribute gesture_attribute = __ATTR(dclicknode, 0664, gesture_show,
+                                                   gesture_store);
+
+static ssize_t screengesture_show(struct kobject *kobj, struct kobj_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "%d\n", screen_gesture);
+}
+
+static ssize_t screengesture_store(struct kobject *kobj, struct kobj_attribute *attr,
+                      const char *buf, size_t count)
+{
+        sscanf(buf, "%du", &screen_gesture);
+        return count;
+}
+
+static struct kobj_attribute screengesture_attribute = __ATTR(gesture_node, 0664, screengesture_show,
+                                                   screengesture_store);
+
+int create_gesture_node(void) {
+	int error = 0, error2 = 0;
+
+        gesture_kobject = kobject_create_and_add("touchpanel",
+                                                 kernel_kobj);
+        if(!gesture_kobject)
+                return -ENOMEM;
+
+        NVT_LOG("[Nvt-ts] : Gesture Node initialized successfully \n");
+
+        error = sysfs_create_file(gesture_kobject, &gesture_attribute.attr);
+        if (error) {
+                NVT_LOG("[Nvt-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
+        }
+
+        error2 = sysfs_create_file(gesture_kobject, &screengesture_attribute.attr);
+        if (error) {
+                NVT_LOG("[Nvt-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
+        }
+
+        return error;
+}
+
+void destroy_gesture(void) {
+	kobject_put(gesture_kobject);
+}
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+static ssize_t double_tap_show(struct kobject *kobj,
+			       struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", enable_gesture_mode);
+}
+
+static ssize_t double_tap_store(struct kobject *kobj,
+				struct kobj_attribute *attr, const char *buf,
+				size_t count)
+{
+	int rc, val;
+
+	rc = kstrtoint(buf, 10, &val);
+	if (rc)
+		return -EINVAL;
+
+	enable_gesture_mode = !!val;
+	return count;
+}
+
+static struct tp_common_ops double_tap_ops = {
+	.show = double_tap_show,
+	.store = double_tap_store
 };
+#endif
 #endif
 /* Huaqin add by yuexinghan for gesture mode 20171030 end */
 
@@ -1669,6 +1737,13 @@ static int32_t nvt_ts_probe(struct i2c_client *client, const struct i2c_device_i
 		input_set_capability(ts->input_dev, EV_KEY, gesture_key_array[retry]);
 	}
 	wake_lock_init(&gestrue_wakelock, WAKE_LOCK_SUSPEND, "poll-wake-lock");
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+	ret = tp_common_set_double_tap_ops(&double_tap_ops);
+	if (ret < 0) {
+		NVT_ERR("%s: Failed to create double_tap node err=%d\n",
+			__func__, ret);
+	}
+#endif
 #endif
 
 	sprintf(ts->phys, "input/ts");
