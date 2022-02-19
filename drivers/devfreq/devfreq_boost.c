@@ -97,8 +97,6 @@ static void __devfreq_boost_kick_max(struct boost_dev *b,
 	if (!mod_delayed_work(system_unbound_wq, &b->max_unboost,
 			      boost_jiffies))
 
-}
-
 void devfreq_boost_kick_max(enum df_device device, unsigned int duration_ms)
 {
 
