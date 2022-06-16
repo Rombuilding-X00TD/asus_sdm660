@@ -1,34 +1,19 @@
---- 
-
 clone: 
-
   depth: 1
-
 kind: pipeline
-
-name: FiqriPipeline
-
+name: AzurePipeline
 steps: 
-
   - 
-
     commands: 
-
-      - apt-get update && apt-get install -y bison build-essential bc bison curl libssl-dev git zip python python3 flex cpio libncurses5-dev wget default-jre
-      - curl https://raw.githubusercontent.com/Rombuilding-X00TD/kernel_build_script-ci/main/kernel.sh | bash
-
+      - "curl https://raw.githubusercontent.com/Rombuilding-X00TD/kernel_build_script-ci/main/build.sh | bash"
     environment: 
-
       TELEGRAM_TOKEN: 
-
         from_secret: BOT_API_KEY
-
-    image: fadlyas/kernel_dockerfile:latest
-
-    name: compile
-
-    trigger: 
+    image: panchajanya1999/archlinux:latest
+    name: Azure-Images
+    trigger:
 
       branch: 
-
-        - snow
+          - snow 
+          - try
+          - stock
